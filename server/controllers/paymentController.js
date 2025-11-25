@@ -46,6 +46,10 @@ exports.createCheckoutSession = async (req, res) => {
             quantity: 1,
         }];
 
+        // Debug: Check userId type
+        const userIdString = req.user._id.toString();
+        console.log('userId type:', typeof userIdString, 'value:', userIdString);
+        
         // Create Stripe checkout session
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -55,7 +59,7 @@ exports.createCheckoutSession = async (req, res) => {
             cancel_url: `${process.env.CLIENT_URL}/upload?payment=cancelled`,
             metadata: {
                 batchId: batchId,
-                userId: req.user._id
+                userId: userIdString
             }
         });
 
