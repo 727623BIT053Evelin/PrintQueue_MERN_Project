@@ -237,9 +237,27 @@ const AdminDashboard = () => {
         if (!printerId) return 0;
         const targetId = printerId.toString();
         return jobs.filter(job => 
-            job.status === 'pending' && 
+            (job.status === 'pending' || job.status === 'printing') && 
             (job.printer?._id || job.printer || '').toString() === targetId
         ).length;
+    };
+
+    // Get the status of a specific printer
+    const getPrinterStatus = (printerId) => {
+        if (!printerId) return 'IDLE';
+        const targetId = printerId.toString();
+        
+        const printerJobs = jobs.filter(j => (j.printer?._id || j.printer || '').toString() === targetId);
+        
+        if (printerJobs.some(j => j.status === 'printing')) return 'PRINTING';
+        
+        // READY if there are paid jobs (can be printed immediately)
+        if (printerJobs.some(j => j.status === 'pending' && j.isPaid)) return 'READY';
+        
+        // WAITING if there are pending jobs but none are paid yet
+        if (printerJobs.some(j => j.status === 'pending')) return 'WAITING';
+        
+        return 'IDLE';
     };
 
     // Check if a job is the next one in line for its printer
@@ -422,10 +440,10 @@ const AdminDashboard = () => {
             {/* Printer Status Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
                 {printers.map((printer) => {
-                    const busy = isPrinterBusy(printer._id);
                     const queueCount = getPrinterQueueCount(printer._id);
+                    const status = getPrinterStatus(printer._id);
                     return (
-                        <div key={printer._id} className={`glass-card p-4 border-l-4 transition-all ${busy ? 'border-blue-500 bg-blue-50/30' : queueCount > 0 ? 'border-amber-500 bg-amber-50/30' : 'border-green-500 bg-green-50/30'}`}>
+                        <div key={printer._id} className={`glass-card p-4 border-l-4 transition-all ${status === 'PRINTING' ? 'border-blue-500 bg-blue-50/30' : status === 'READY' ? 'border-green-500 bg-green-50/30 shadow-lg shadow-green-200/20' : status === 'WAITING' ? 'border-amber-500 bg-amber-50/30' : 'border-slate-300 bg-slate-50/30'}`}>
                             <div className="flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-bold text-slate-800 text-sm truncate">{printer.name}</h3>
@@ -434,18 +452,18 @@ const AdminDashboard = () => {
                                         {printer.location}
                                     </p>
                                 </div>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ml-2 ${busy ? 'bg-blue-100 text-blue-600' : queueCount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                    <Printer className={`w-4 h-4 ${busy ? 'animate-pulse' : ''}`} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ml-2 ${status === 'PRINTING' ? 'bg-blue-100 text-blue-600' : status === 'READY' ? 'bg-green-100 text-green-600' : status === 'WAITING' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                                    <Printer className={`w-4 h-4 ${status === 'PRINTING' ? 'animate-pulse' : ''}`} />
                                 </div>
                             </div>
                             <div className="mt-3 flex items-center justify-between">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${busy ? 'bg-blue-100 text-blue-700' : queueCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
-                                    {busy ? 'PRINTING' : queueCount > 0 ? 'WAITING' : 'IDLE'}
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${status === 'PRINTING' ? 'bg-blue-100 text-blue-700' : status === 'READY' ? 'bg-green-100 text-green-700' : status === 'WAITING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                    {status}
                                 </span>
                                 <span className="text-xs font-medium text-slate-500">
                                     Queue: {queueCount}
                                 </span>
-                                {busy && (
+                                {status === 'PRINTING' && (
                                     <div className="flex space-x-1">
                                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
                                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -588,24 +606,18 @@ const AdminDashboard = () => {
                                                                 }}
                                                                 disabled={
                                                                     jobs.some(j => j.batchId === batch.batchId && (
-                                                                        isPrinterBusy(j.printer?._id || j.printer) ||
-                                                                        !isNextInQueue(j)
+                                                                        isPrinterBusy(j.printer?._id || j.printer)
                                                                     ))
                                                                 }
                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${jobs.some(j => j.batchId === batch.batchId && (
-                                                                    isPrinterBusy(j.printer?._id || j.printer) ||
-                                                                    !isNextInQueue(j)
+                                                                    isPrinterBusy(j.printer?._id || j.printer)
                                                                 ))
                                                                     ? 'text-slate-400 bg-slate-100 cursor-not-allowed border border-slate-200'
                                                                     : 'text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200'}`}
                                                                 title={
                                                                     jobs.some(j => j.batchId === batch.batchId && isPrinterBusy(j.printer?._id || j.printer))
                                                                         ? "Printer is busy"
-                                                                        : jobs.some(j => j.batchId === batch.batchId && !isNextInQueue(j))
-                                                                            ? "Waiting for previous jobs on this printer"
-                                                                            : batch.skipCount >= 2
-                                                                                ? "Max skips reached - cannot print"
-                                                                                : "Print Batch"
+                                                                        : "Print Batch"
                                                                 }
                                                             >
                                                                 Print Batch
@@ -799,19 +811,18 @@ const AdminDashboard = () => {
                                                     <button
                                                         onClick={() => updateStatus(job._id, 'printing')}
                                                         disabled={
-                                                            jobs.some(j => j.status === 'printing') ||
-                                                            (job.paymentMethod === 'counter' && !job.confirmedPresence)
+                                                            isPrinterBusy(job.printer?._id || job.printer) ||
+                                                            !job.isPaid
                                                         }
-                                                        className={`p-2 rounded-full transition-all ${jobs.some(j => j.status === 'printing') ||
-                                                            (job.paymentMethod === 'counter' && !job.confirmedPresence)
+                                                        className={`p-2 rounded-full transition-all ${isPrinterBusy(job.printer?._id || job.printer) || !job.isPaid
                                                             ? 'text-slate-300 bg-slate-100 cursor-not-allowed'
                                                             : 'text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100'
                                                             }`}
                                                         title={
-                                                            jobs.some(j => j.status === 'printing')
+                                                            isPrinterBusy(job.printer?._id || job.printer)
                                                                 ? "Printer is busy"
-                                                                : (job.paymentMethod === 'counter' && !job.confirmedPresence)
-                                                                    ? "Counter payment requires user presence"
+                                                                : !job.isPaid
+                                                                    ? "Job must be paid first"
                                                                     : "Start Printing"
                                                         }
                                                     >
@@ -859,7 +870,7 @@ const AdminDashboard = () => {
                     </table>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 
