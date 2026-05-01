@@ -5,9 +5,9 @@ const path = require('path');
 // Load env vars
 dotenv.config({ path: path.join(__dirname, '../server/.env') });
 
-const Job = require('../server/models/Job');
-const Printer = require('../server/models/Printer');
-const User = require('../server/models/User');
+const Job = require('./server/models/Job');
+const Printer = require('./server/models/Printer');
+const User = require('./server/models/User');
 
 const connectDB = async () => {
     try {
